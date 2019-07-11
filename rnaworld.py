@@ -271,12 +271,15 @@ def test_RNAWorld2D():
     print(f'info:\n{info}\nob:\n{ob}\n')
 
     while True:
+        # random fold
         if len(env.action_space) > 0:
             idx = np.random.randint(len(env.action_space))
             action = env.action_space[idx]
         else:
             idx = np.random.randint(len(env.pseudoknot_space))
             action = env.pseudoknot_space[idx]
+        # native fold
+        # action = info['pairs'][len(info['pred_pairs'])]
 
         ob, reward, done, info = env.step(action)
         env.render()
