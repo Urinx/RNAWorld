@@ -3,14 +3,14 @@ A gym environment for the research which apply the reinforcement learning algori
 
 一个用来训练 RNA 结构预测方面的强化学习算法的 gym 环境。
 
-![example](example.png)
+![example](img/example.png)
 
 ## Installation
 
 Before using this gym env, you need install the following packages:
 
 ```bash
-pip install networkx pymol
+pip install networkx pymol rmsd
 ```
 
 It is highly recommanded that just clone this repo and directly use it in you code:
@@ -86,4 +86,36 @@ while True:
 env.close()
 ```
 
-The RNAWorld3D env is not available, the implement is still on process now, but soon it will be finished.
+a demo of RNAWorld3D env:
+
+```python
+env = RNAWorld3D()
+env.set_rna('data/1y26.cif')
+
+ob, node, info = env.reset()
+env.render()
+print(f'info:\n{info}\n')
+
+for _ in range(10):
+    # random action
+    resi = np.random.randint(0, info['len'])
+    #          alpha, beta, gamma, delta, epsilon, zeta, chi
+    angles = [ None,  None, None,  None,  None,    None, None ]
+    i = np.random.randint(0, 6)
+    angle = np.random.randint(-180, 180)
+    angles[i] = angle
+    action = (resi, angles)
+
+    ob, rmsd, done, info = env.step(action)
+    print(f'residue: {i}\nangles: {angles}\nrmsd: {rmsd}\n')
+    env.render()
+
+input()
+env.save_pdb()
+```
+
+## Illustration
+
+In RNAWorld3D env, we don't take the side chain into consider, so every step all you need is to adjust six torsion angle definded in the following graph.
+
+![Illustration](img/illustration.png)

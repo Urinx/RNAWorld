@@ -7,6 +7,7 @@ import networkx as nx
 import pyglet
 import os
 import time
+import rmsd
 import pymol
 pymol.finish_launching(['pymol', '-qc'])
 cmd = pymol.cmd
@@ -178,6 +179,11 @@ class RNAWorld2D(gym.Env):
         return None
 
 class RNAWorld3D(gym.Env):
+    metadata = {
+        'render.modes': ['human', 'rgb_array'],
+        'video.frames_per_second': 2
+    }
+
     def __init__(self):
         super().__init__()
 
@@ -185,8 +191,6 @@ class RNAWorld3D(gym.Env):
         self.state = None
         self.viewer = None
         self.atom_coords = None
-        self.action_space = None
-        self.observation_spce = None # spaces.Box(-high, high)
         self.WINDOW_W = 1000
         self.WINDOW_H = 800
         self.snap_dir = ''
@@ -216,8 +220,43 @@ class RNAWorld3D(gym.Env):
                 os.remove(self.snap_dir+'/'+f)
 
         # only use one chain
-        # chain = cmd.get_chains()[0]
-        # model = cmd.get_model(f'chain {chain}')
+        chain = cmd.get_chains()[0]
+        model = cmd.get_model(f'chain {chain}')
+        self.info['start_resi_n'] = model.atom[0].resi_number
+
+    def _set_residue_torsion(self, idx, angles):
+        alpha, beta, gamma, delta, epsilon, zeta, chi = angles
+        i = self.info['start_resi_n'] + idx
+        L = self.info['len']
+        assert 0 <= idx < L, 'Index error'
+
+        if idx != 0:
+            # alpha
+            if alpha is not None:
+                cmd.set_dihedral(f"{i}/C5'", f"{i}/O5'", f"{i}/P", f"{i}/OP1", alpha)
+            # beta
+            if beta is not None:
+                cmd.set_dihedral(f"{i}/C4'", f"{i}/C5'", f"{i}/O5'", f"{i}/P", beta)
+
+        # gamma
+        if gamma is not None:
+            cmd.set_dihedral(f"{i}/C3'", f"{i}/C4'", f"{i}/C5'", f"{i}/O5'", gamma)
+
+        # delta
+        if delta is not None:
+            cmd.set_dihedral(f"{i}/O3'", f"{i}/C3'", f"{i}/C4'", f"{i}/C5'", delta)
+
+        if idx != L - 1:
+            # epsilon
+            if epsilon is not None:
+                cmd.set_dihedral(f"{i+1}/P", f"{i}/O3'", f"{i}/C3'", f"{i}/C4'", epsilon)
+            # zeta
+            if zeta is not None:
+                cmd.set_dihedral(f"{i+1}/OP1", f"{i+1}/P", f"{i}/O3'", f"{i}/C3'", zeta)
+
+        # chi: dont consider side chain at now
+
+        cmd.unpick()
 
     def reset(self):
         L = self.info['len']
@@ -233,7 +272,14 @@ class RNAWorld3D(gym.Env):
         return self.state, node, self.info
 
     def random_init_atom_coords(self):
-        return NotImplemented
+        for i in range(self.info['len']):
+            angles = [None, None, None, None, None, None, None]
+            j = np.random.randint(0, 6)
+            angle = np.random.randint(-180,180)
+            angles[j] = angle
+            self._set_residue_torsion(i, angles)
+        
+        return cmd.get_coords()
 
     def render(self, mode='human'):
         if self.viewer is None:
@@ -241,6 +287,7 @@ class RNAWorld3D(gym.Env):
             self.viewer = rendering.Viewer(self.WINDOW_W, self.WINDOW_H)
 
         img_file = f'{self.snap_dir}/{self.snap_count}.png'
+        cmd.zoom()
         cmd.png(img_file, self.WINDOW_W, self.WINDOW_H, dpi=150, ray=1)
         self.snap_count += 1
         
@@ -256,7 +303,17 @@ class RNAWorld3D(gym.Env):
         return self.viewer.isopen
 
     def step(self, action):
-        return NotImplemented
+        resi, angles = action
+        self._set_residue_torsion(resi, angles)
+        self.state = cmd.get_coords()
+        reward = rmsd.kabsch_rmsd(self.state.copy(), self.atom_coords.copy(), translate=True)
+        done = reward < 1
+        return self.state, reward, done, self.info
+
+    def save_pdb(self, filename=None):
+        if filename is None:
+            filename = self.snap_dir + '/result.pdb'
+        cmd.save(filename)
 
     def close(self):
         return None
@@ -294,10 +351,27 @@ def test_RNAWorld2D():
 def test_RNAWorld3D():
     env = RNAWorld3D()
     env.set_rna('data/1y26.cif')
-    env.render()
 
     ob, node, info = env.reset()
     env.render()
+    print(f'info:\n{info}\n')
+
+    for _ in range(10):
+        # random action
+        resi = np.random.randint(0, info['len'])
+        #          alpha, beta, gamma, delta, epsilon, zeta, chi
+        angles = [ None,  None, None,  None,  None,    None, None ]
+        i = np.random.randint(0, 6)
+        angle = np.random.randint(-180, 180)
+        angles[i] = angle
+        action = (resi, angles)
+
+        ob, rmsd, done, info = env.step(action)
+        print(f'residue: {i}\nangles: {angles}\nrmsd: {rmsd}\n')
+        env.render()
+
+    input()
+    env.save_pdb()
 
 if __name__ == '__main__':
-    test_RNAWorld2D()
+    test_RNAWorld3D()
