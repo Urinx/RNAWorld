@@ -3,6 +3,19 @@ A gym environment for the research which apply the reinforcement learning algori
 
 一个用来训练 RNA 结构预测方面的强化学习算法的 gym 环境。
 
+Please use this bibtex if you want to cite this repository in your publications:
+
+```
+@misc{gym_rnaworld,
+  author = {Kangkun Mao},
+  title = {RNAWorld Environments for OpenAI Gym},
+  year = {2019},
+  publisher = {GitHub},
+  journal = {GitHub repository},
+  howpublished = {\url{https://github.com/Urinx/RNAWorld}},
+}
+```
+
 ![example](img/example.png)
 
 ## Installation
